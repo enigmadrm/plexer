@@ -1,0 +1,189 @@
+version: '3.8'
+services:
+
+    nginx:
+        container_name: nginx
+        hostname: nginx
+        ports:
+            - '80:80'
+        restart: unless-stopped
+        image: nginx:latest
+        volumes:
+            - ./nginx/conf.d:/etc/nginx/conf.d
+
+    # transmissionvpn:
+    #     container_name: transmissionvpn
+    #     hostname: transmissionvpn
+    #     volumes:
+    #         - ${TRANSMISSION_DOWNLOADDIR}:/downloads/transmission
+    #     environment:
+    #         - OPENVPN_PROVIDER=${VPN_PROV}
+    #         - OPENVPN_USERNAME=${VPN_USER}
+    #         - OPENVPN_PASSWORD=${VPN_PASS}
+    #         - WEBPROXY_ENABLED=yes
+    #         - LOCAL_NETWORK=${LAN_NETWORK}
+    #         - TZ=America/Los_Angeles
+    #     cap_add:
+    #         - NET_ADMIN
+    #     ports:
+    #         - '${TRANSMISSION_PORT}:9091'
+    #     restart: unless-stopped
+    #     image: haugene/transmission-openvpn
+        
+    qbittorrentvpn:
+        container_name: qbittorrentvpn
+        hostname: qbittorrentvpn
+        cap_add: 
+            - NET_ADMIN
+        ports:
+            - '${QBITTORRENT_WEBPORT}:6969'
+            - '6881:6881'
+            - '6881:6881/udp'
+            - '8118:8118'
+        restart: unless-stopped
+        volumes:
+            - ./qbittorrent/data:/data
+            - ./qbittorrent/config:/config
+            - ${QBITTORRENT_DOWNLOADDIR}:/downloads/qbittorrent
+        environment:
+            - VPN_ENABLED=yes
+            - VPN_USER=${VPN_USER}
+            - VPN_PASS=${VPN_PASS}
+            - VPN_PROV=${VPN_PROV}
+            - VPN_CLIENT=openvpn
+            - STRICT_PORT_FORWARD=yes
+            - ENABLE_PRIVOXY=yes
+            - LAN_NETWORK=${LAN_NETWORK}
+            - 'NAME_SERVERS=209.222.18.222,84.200.69.80,37.235.1.174,1.1.1.1,209.222.18.218,37.235.1.177,84.200.70.40,1.0.0.1'
+            - VPN_INPUT_PORTS=1234
+            - VPN_OUTPUT_PORTS=5678
+            - DEBUG=false
+            - WEBUI_PORT=6969
+            - UMASK=000
+            - PUID=${PUID}
+            - PGID=${PGID}
+        sysctls:
+            - net.ipv6.conf.all.disable_ipv6=1
+        image: binhex/arch-qbittorrentvpn
+    
+    prowlarr:
+        image: lscr.io/linuxserver/prowlarr:develop
+        container_name: prowlarr
+        hostname: prowlarr
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+        volumes:
+            - ./prowlarr/config:/config
+        ports:
+            - '${PROWLARR_WEBPORT}:9696'
+        restart: unless-stopped
+    
+    radarr:
+        image: ghcr.io/linuxserver/radarr
+        container_name: radarr
+        hostname: radarr
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+        volumes:
+            - ./radarr/config:/config
+            - ${RADARR_MOVIEDIR}:/data/movies
+            - ${QBITTORRENT_DOWNLOADDIR}:/downloads/qbittorrent
+            - ${TRANSMISSION_DOWNLOADDIR}:/downloads/transmission
+        ports:
+            - '${RADARR_WEBPORT}:7878'
+        restart: unless-stopped
+
+    sonarr:
+        image: ghcr.io/linuxserver/sonarr
+        container_name: sonarr
+        hostname: sonarr
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+        volumes:
+            - ./sonarr/config:/config
+            - ${SONARR_SHOWSDIR}:/data/tvshows
+            - ${QBITTORRENT_DOWNLOADDIR}:/downloads/qbittorrent
+            - ${TRANSMISSION_DOWNLOADDIR}:/downloads/transmission
+        ports:
+            - '${SONARR_WEBPORT}:8989'
+        restart: unless-stopped
+
+    # lidarr:
+    #     image: ghcr.io/linuxserver/lidarr
+    #     container_name: lidarr
+    #     environment:
+    #         - PUID=${PUID}
+    #         - PGID=${PGID}
+    #         - TZ=${TZ}
+    #     volumes:
+    #         - ./lidarr/config:/config
+    #         - ${LIDARR_MUSICDIR}:/music 
+    #         - ${QBITTORRENT_DOWNLOADDIR}:/downloads/qbittorrent
+    #     ports:
+    #         - '${LIDARR_WEBPORT}:8686'
+    #     restart: unless-stopped
+
+    # readarr:
+    #     image: lscr.io/linuxserver/readarr:develop
+    #     container_name: readarr
+    #     environment:
+    #         - PUID=${PUID}
+    #         - PGID=${PGID}
+    #         - TZ=${TZ}
+    #     extra_hosts:
+    #         - 'host.docker.internal:host-gateway'
+    #     volumes:
+    #         - ./readarr/config:/config
+    #         - '${READARR_BOOKDIR}:/books'
+    #         - ${QBITTORRENT_DOWNLOADDIR}:/downloads/qbittorrent
+    #     ports:
+    #         - ${READARR_WEBPORT}:8787
+    #     restart: unless-stopped
+
+    overseerr:
+        image: lscr.io/linuxserver/overseerr
+        container_name: overseerr
+        hostname: overseerr
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+        volumes:
+            - ./overseerr/config:/config
+        ports:
+            - ${OVERSEERR_WEBPORT}:5055
+        restart: unless-stopped
+
+    plex:
+        container_name: plex
+        image: linuxserver/plex
+        restart: unless-stopped
+        environment:
+          - TZ=${TZ}
+          - PLEX_CLAIM=${PLEX_CLAIM}
+        network_mode: host
+        volumes:
+          - ${PLEX_CONFIG_PATH}:/config
+          - ${PLEX_TRANSCODE_PATH}:/transcode
+          - movies:/data/movies
+          - shows:/data/shows
+
+volumes:
+    shows:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            device: "//192.168.10.36/dataset2/Shows"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},uid=1000,gid=1000"
+    movies:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            device: "//192.168.10.36/dataset1/Movies"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},uid=1000,gid=1000"
